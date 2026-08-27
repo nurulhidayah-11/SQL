@@ -1,0 +1,484 @@
+CREATE DATABASE ecommerce_analysis;
+USE ecommerce_analysis;
+
+--Table Customer
+CREATE TABLE Customers (
+    customer_id INT PRIMARY KEY,
+    name VARCHAR(100),
+    email VARCHAR(100),
+    phone VARCHAR(20),
+    gender VARCHAR(20),
+    age_group VARCHAR(20),
+    city VARCHAR(100),
+    province VARCHAR(100),
+    registration DATE,
+    total_order INT
+);
+
+-- Table Products
+CREATE TABLE Products (
+    product_id INT PRIMARY KEY,
+    name VARCHAR(150),
+    brand VARCHAR(100),
+    category VARCHAR(100),
+    sub_category VARCHAR(100),
+    material VARCHAR(100),
+    price_idr DECIMAL(15,2),
+    stock INT,
+    avg_rating DECIMAL(3,2)
+);
+
+-- Table Orders
+CREATE TABLE Orders (
+    order_id INT PRIMARY KEY,
+    customer_id INT,
+    order_date DATE,
+    order_status VARCHAR(50),
+    payment_method VARCHAR(50),
+    promo_code VARCHAR(50),
+    discount_amount DECIMAL(15,2),
+    shipping_city VARCHAR(100),
+    shipping_customer VARCHAR(150),
+    courier VARCHAR(100),
+    total_amount_idr DECIMAL(15,2),
+
+    FOREIGN KEY (customer_id)
+        REFERENCES Customers(customer_id)
+);
+
+--Table Order Items
+CREATE TABLE Order_Items (
+    item_id INT PRIMARY KEY,
+    order_id INT,
+    product_id INT,
+    quantity INT,
+    sub_total_idr DECIMAL(15,2),
+    unit_price_idr DECIMAL(15,2),
+
+    FOREIGN KEY (order_id)
+        REFERENCES Orders(order_id),
+
+    FOREIGN KEY (product_id)
+        REFERENCES Products(product_id)
+);
+
+--Table Review
+CREATE TABLE Reviews (
+    review_id INT PRIMARY KEY,
+    customer_id INT,
+    order_id INT,
+    product_id INT,
+    rating INT,
+    review_date DATE,
+    review_text TEXT,
+    helpful_count INT,
+
+    FOREIGN KEY (customer_id)
+        REFERENCES Customers(customer_id),
+
+    FOREIGN KEY (order_id)
+        REFERENCES Orders(order_id),
+
+    FOREIGN KEY (product_id)
+        REFERENCES Products(product_id)
+);
+
+
+--IMPORT DATASET
+--Data Customer
+LOAD DATA INFILE 'C:/data/customers.csv'
+INTO TABLE Customers
+FIELDS TERMINATED BY ','
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n'
+IGNORE 1 ROWS
+(
+    customer_id,
+    name,
+    email,
+    phone,
+    gender,
+    age_group,
+    city,
+    province,
+    registration,
+    total_order
+);
+
+-- Data Products
+LOAD DATA INFILE 'C:/data/products.csv'
+INTO TABLE Products
+FIELDS TERMINATED BY ','
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n'
+IGNORE 1 ROWS
+(
+    product_id,
+    name,
+    brand,
+    category,
+    sub_category,
+    material,
+    price_idr,
+    stock,
+    avg_rating
+);
+
+--Data Orders
+LOAD DATA INFILE 'C:/data/orders.csv'
+INTO TABLE Orders
+FIELDS TERMINATED BY ','
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n'
+IGNORE 1 ROWS
+(
+    order_id,
+    customer_id,
+    order_date,
+    order_status,
+    payment_method,
+    promo_code,
+    discount_amount,
+    shipping_city,
+    shipping_customer,
+    courier,
+    total_amount_idr
+);
+
+-- Data Order Items
+LOAD DATA INFILE 'C:/data/order_items.csv'
+INTO TABLE Order_Items
+FIELDS TERMINATED BY ','
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n'
+IGNORE 1 ROWS
+(
+    item_id,
+    order_id,
+    product_id,
+    quantity,
+    sub_total_idr,
+    unit_price_idr
+);
+
+-- Data review
+LOAD DATA INFILE 'C:/data/reviews.csv'
+INTO TABLE Reviews
+FIELDS TERMINATED BY ','
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n'
+IGNORE 1 ROWS
+(
+    review_id,
+    customer_id,
+    order_id,
+    product_id,
+    rating,
+    review_date,
+    review_text,
+    helpful_count
+);
+
+-- Checking Data
+SELECT COUNT(*) AS total_customers
+FROM Customers;
+
+SELECT COUNT(*) AS total_products
+FROM Products;
+
+SELECT COUNT(*) AS total_orders
+FROM Orders;
+
+SELECT COUNT(*) AS total_order_items
+FROM Order_Items;
+
+SELECT COUNT(*) AS total_reviews
+FROM Reviews;
+
+SELECT *
+FROM Customers
+LIMIT 10;
+
+SELECT *
+FROM Orders
+LIMIT 10;
+
+SELECT *
+FROM Products
+LIMIT 10;
+
+SELECT *
+FROM order_items 
+LIMIT 10;
+
+SELECT *
+FROM reviews
+LIMIT 10;
+
+-- Cleaning Data
+SELECT *
+FROM Customers
+WHERE customer_id IS NULL;
+
+SELECT *
+FROM Orders
+WHERE order_id IS NULL;
+
+SELECT *
+FROM Products
+WHERE price_idr <= 0;
+
+SELECT *
+FROM Order_Items
+WHERE quantity <= 0;
+
+SELECT *
+FROM Reviews
+WHERE rating < 1
+   OR rating > 5;
+
+-- Cek Duplikat Data Customer
+SELECT
+    customer_id,
+    COUNT(*) AS jumlah
+FROM Customers
+GROUP BY customer_id
+HAVING COUNT(*) > 1;
+
+-- Analisa Customer dengan Spanding Tertinggi
+SELECT
+    c.customer_id,
+    c.name,
+    c.city,
+    c.province,
+    COUNT(DISTINCT o.order_id) AS total_orders,
+    SUM(o.total_amount_idr) AS total_spending
+FROM Customers c
+JOIN Orders o
+    ON c.customer_id = o.customer_id
+WHERE o.order_status = 'Completed'
+GROUP BY
+    c.customer_id,
+    c.name,
+    c.city,
+    c.province
+ORDER BY total_spending DESC;
+
+-- Top 10 Spanding Tertinggi
+SELECT
+    c.customer_id,
+    c.name,
+    COUNT(DISTINCT o.order_id) AS total_orders,
+    SUM(o.total_amount_idr) AS total_spending
+FROM Customers c
+JOIN Orders o
+    ON c.customer_id = o.customer_id
+WHERE o.order_status = 'Completed'
+GROUP BY
+    c.customer_id,
+    c.name
+ORDER BY total_spending DESC
+LIMIT 10;
+
+--Produk Terbanyak Terjual
+SELECT
+    p.product_id,
+    p.name AS product_name,
+    p.category,
+    SUM(oi.quantity) AS total_quantity_sold,
+    SUM(oi.sub_total_idr) AS total_revenue
+FROM Order_Items oi
+JOIN Products p
+    ON oi.product_id = p.product_id
+JOIN Orders o
+    ON oi.order_id = o.order_id
+WHERE o.order_status = 'Completed'
+GROUP BY
+    p.product_id,
+    p.name,
+    p.category
+ORDER BY total_quantity_sold DESC;
+
+-- Top 10 Barang Terbanyak Terjual
+SELECT
+    p.product_id,
+    p.name AS product_name,
+    p.category,
+    SUM(oi.quantity) AS total_quantity_sold,
+    SUM(oi.sub_total_idr) AS total_revenue
+FROM Order_Items oi
+JOIN Products p
+    ON oi.product_id = p.product_id
+JOIN Orders o
+    ON oi.order_id = o.order_id
+WHERE o.order_status = 'Completed'
+GROUP BY
+    p.product_id,
+    p.name,
+    p.category
+ORDER BY total_quantity_sold DESC
+LIMIT 10;
+
+-- Customers Segmentation
+SELECT
+    c.customer_id,
+    c.name,
+
+    DATEDIFF(
+        (SELECT MAX(order_date)
+         FROM Orders
+         WHERE order_status = 'Completed'),
+        MAX(o.order_date)
+    ) AS recency,
+
+    COUNT(DISTINCT o.order_id) AS frequency,
+
+    SUM(o.total_amount_idr) AS monetary
+
+FROM Customers c
+JOIN Orders o
+    ON c.customer_id = o.customer_id
+
+WHERE o.order_status = 'Completed'
+
+GROUP BY
+    c.customer_id,
+    c.name;
+
+--Score Segmentation
+WITH RFM AS (
+    SELECT
+        c.customer_id,
+        c.name,
+
+        DATEDIFF(
+            (SELECT MAX(order_date)
+             FROM Orders
+             WHERE order_status = 'Completed'),
+            MAX(o.order_date)
+        ) AS recency,
+
+        COUNT(DISTINCT o.order_id) AS frequency,
+
+        SUM(o.total_amount_idr) AS monetary
+
+    FROM Customers c
+    JOIN Orders o
+        ON c.customer_id = o.customer_id
+
+    WHERE o.order_status = 'Completed'
+
+    GROUP BY
+        c.customer_id,
+        c.name
+),
+
+RFM_Score AS (
+    SELECT
+        *,
+        NTILE(5) OVER (ORDER BY recency DESC) AS R_Score,
+        NTILE(5) OVER (ORDER BY frequency ASC) AS F_Score,
+        NTILE(5) OVER (ORDER BY monetary ASC) AS M_Score
+    FROM RFM
+)
+
+SELECT
+    *,
+    CONCAT(R_Score, F_Score, M_Score) AS RFM_Score
+FROM RFM_Score
+ORDER BY monetary DESC;
+
+-- Membuat Segmentation
+WITH RFM AS (
+    SELECT
+        c.customer_id,
+        c.name,
+
+        DATEDIFF(
+            (SELECT MAX(order_date)
+             FROM Orders
+             WHERE order_status = 'Completed'),
+            MAX(o.order_date)
+        ) AS recency,
+
+        COUNT(DISTINCT o.order_id) AS frequency,
+
+        SUM(o.total_amount_idr) AS monetary
+
+    FROM Customers c
+    JOIN Orders o
+        ON c.customer_id = o.customer_id
+
+    WHERE o.order_status = 'Completed'
+
+    GROUP BY
+        c.customer_id,
+        c.name
+),
+
+RFM_Score AS (
+    SELECT
+        *,
+        NTILE(5) OVER (ORDER BY recency DESC) AS R_Score,
+        NTILE(5) OVER (ORDER BY frequency ASC) AS F_Score,
+        NTILE(5) OVER (ORDER BY monetary ASC) AS M_Score
+    FROM RFM
+)
+
+SELECT
+    customer_id,
+    name,
+    recency,
+    frequency,
+    monetary,
+    R_Score,
+    F_Score,
+    M_Score,
+
+    CASE
+        WHEN R_Score >= 4
+             AND F_Score >= 4
+             AND M_Score >= 4
+            THEN 'Champions'
+
+        WHEN R_Score >= 4
+             AND F_Score >= 3
+            THEN 'Loyal Customers'
+
+        WHEN R_Score <= 2
+             AND F_Score >= 3
+            THEN 'At Risk'
+
+        WHEN R_Score <= 2
+             AND F_Score <= 2
+             AND M_Score <= 2
+            THEN 'Lost Customers'
+
+        ELSE 'Potential Customers'
+    END AS customer_segment
+
+FROM RFM_Score
+ORDER BY monetary DESC;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
